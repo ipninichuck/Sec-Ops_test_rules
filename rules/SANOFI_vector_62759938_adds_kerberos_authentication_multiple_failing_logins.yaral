@@ -1,0 +1,55 @@
+rule SANOFI_vector_62759938_adds_kerberos_authentication_multiple_failing_logins {
+
+  meta:
+    author = "Marian LAPEYRE"
+    severity = "Low"
+    id = "ID080"
+    //name = "ADDS: Winevent: Kerberos Authentication: Password Spraying: Multiple Invalid Password from same source"
+    description = "This rule detects Password Spraying attempts involving multiple Kerberos authentication failures (event 4771) from a single source IP within a 60-minute timeframe."
+    mitre_attack_techniques = "T1110.003"
+    mitre_attack_version = "v16"
+    creation_date = "12/18/2024"
+    last_reviewed_date = "2025/07/23"
+
+  events:
+    $e.metadata.log_type = "WINEVTLOG"
+    $e.metadata.product_event_type = "4771" 
+    $e.security_result.description = /0x18/ // This error code means "Username is valid, but password is invalid"
+    not $e.target.user.userid = ""
+    not $e.target.user.userid = "N/A"
+    not $e.target.user.userid in %snow_kerberos_whitelist 
+    not $e.principal.ip in %auto_tier0_domaincontroller_ip  
+    not $e.principal.ip in %zscaler_vpn 
+    not $e.principal.ip in %zscaler_vzen  
+    not $e.principal.ip in %calix_sNGDC_ip 
+    not $e.principal.ip in %exception_sanofi_Kerberos_pwdSpray_multiInvalid 
+    
+    $e.principal.ip = $source_ip
+    $e.target.user.userid = $account
+
+  match:
+    $source_ip over 60m
+
+
+  outcome:
+    $event_id =array_distinct($e.metadata.product_event_type)
+    //$caller_hostname= array_distinct($e.principal.hostname)
+    $tier0_principal_hostname= array_distinct($e.intermediary.hostname)
+    $description= array_distinct($e.metadata.description)
+    $result_description = array_distinct($e.security_result.description)
+    $severity= array_distinct($e.security_result.severity)
+    $src_ip = array_distinct($e.principal.ip)
+    //$tier0_src_ip= array_distinct($e.src.ip)
+    //$service_name = array_distinct($e.target.application)
+    $tier0_spn= array_distinct($e.target.application)
+    $user_name=array_distinct($e.target.user.userid) //4776, 4771, 4768, 4769, 4624, 4625
+    //$target_username=array_distinct($e.target.user.userid)
+    //$target_hostname=array_distinct($e.target.hostname)
+    $tier0_target_domain_netbios=array_distinct($e.target.administrative_domain)
+    $target_user_windows_sid=array_distinct($e.target.user.windows_sid)
+    $account_distinct_count = count_distinct($e.target.application)
+    $event_count = count_distinct($e.metadata.id)
+
+  condition:
+     #account >= 20
+}
